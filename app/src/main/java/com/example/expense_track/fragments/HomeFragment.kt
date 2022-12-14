@@ -1,26 +1,25 @@
-package com.example.expense_track.fragments.home
+package com.example.expense_track.fragments
 
+import android.graphics.Color
 import android.os.Bundle
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
-import android.widget.Toast
 import androidx.core.content.ContextCompat
-import androidx.databinding.DataBindingUtil
-import androidx.databinding.ViewDataBinding
-import androidx.lifecycle.ViewModelProvider
+import androidx.fragment.app.Fragment
+import androidx.navigation.Navigation
 import androidx.navigation.fragment.findNavController
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import androidx.room.Room
 import com.example.expense_track.R
+import com.example.expense_track.adapters.HeaderAdapter
 import com.example.expense_track.adapters.TransactionAdapter
 import com.example.expense_track.database.Transaction
 import com.example.expense_track.database.TransactionsDatabase
-import com.example.expense_track.databinding.FragmentHomeBinding
 import com.google.android.material.floatingactionbutton.FloatingActionButton
 import com.google.android.material.snackbar.Snackbar
 import kotlinx.coroutines.DelicateCoroutinesApi
@@ -41,10 +40,16 @@ class HomeFragment : Fragment() {
         savedInstanceState: Bundle?
     ): View? {
         val view = inflater.inflate(R.layout.fragment_home, container, false)
+        transactions = arrayListOf()
 
         val addTransactionButton = view.findViewById<FloatingActionButton>(R.id.addBtn)
         addTransactionButton.setOnClickListener {
             findNavController().navigate(R.id.action_homeFragment_to_addFragment)
+        }
+
+        val timerButton = view.findViewById<FloatingActionButton>(R.id.timerbtn)
+        timerButton.setOnClickListener {
+            findNavController().navigate(R.id.action_homeFragment_to_timerFragment)
         }
 
         val todoButton = view.findViewById<FloatingActionButton>(R.id.todoBtn)
@@ -52,28 +57,28 @@ class HomeFragment : Fragment() {
             findNavController().navigate(R.id.action_homeFragment_to_todoFragment)
         }
 
-        transactions = emptyList()
-
-        fun setUp() = view.findViewById<RecyclerView>(R.id.recyclerview).apply {
-            transactionAdapter = TransactionAdapter() {
-                val toast = Toast.makeText(container?.context, "valami", Toast.LENGTH_SHORT)
-                toast.show()
+        val headerAdapter = HeaderAdapter(transactions.size)
+        transactionAdapter = TransactionAdapter(transactions)
+        transactionAdapter.setClickListener(object : TransactionAdapter.OnItemClickListener {
+            override fun onItemClick(transaction: Int) {
+                val selectedTransaction : Transaction = transactions[transaction]
+                val action = HomeFragmentDirections
+                    .actionHomeFragmentToDetailsFragment(selectedTransaction.id)
+                Navigation.findNavController(view).navigate(action)
             }
-            adapter = transactionAdapter
-            layoutManager = LinearLayoutManager(container?.context)
-        }
-
-        setUp()
-
+        })
+        val concatAdapter = ConcatAdapter(headerAdapter, transactionAdapter)
         if (container != null) {
             linearLayoutManager = LinearLayoutManager(container.context)
             database = Room.databaseBuilder(container.context,
-                TransactionsDatabase::class.java, "transactions").build()
+                TransactionsDatabase::class.java, "transactions")
+                .fallbackToDestructiveMigration()
+                .build()
         }
 
         val recyclerview = view.findViewById<RecyclerView>(R.id.recyclerview)
         recyclerview.layoutManager = linearLayoutManager
-        recyclerview.adapter = transactionAdapter
+        recyclerview.adapter = concatAdapter
 
         // remove by swipe
         val itemTouchHelper = object : ItemTouchHelper
@@ -100,20 +105,18 @@ class HomeFragment : Fragment() {
     @OptIn(DelicateCoroutinesApi::class)
     private fun fetchAll() {
         GlobalScope.launch {
-            transactions = database.transactionsDatabaseDao.getAll()
+            transactions = database.transactionDatabaseDao().getAll()
             activity?.runOnUiThread {
                 updateDashboard()
-                transactionAdapter.transactions = transactions
+                transactionAdapter.setData(transactions)
             }
         }
     }
 
     private fun updateDashboard() {
-        val totalAmount = transactions.map { it.amount }.sum()
+        val totalAmount = transactions.sumOf { it.amount }
         val budgetAmount = transactions
-            .filter { it.amount > 0 }
-            .map { it.amount }
-            .sum()
+            .filter { it.amount > 0 }.sumOf { it.amount }
         val expenseAmount = totalAmount - budgetAmount
 
         val balance = view?.findViewById<TextView>(R.id.balance)
@@ -123,21 +126,23 @@ class HomeFragment : Fragment() {
         val budget = view?.findViewById<TextView>(R.id.budget)
         if (budget != null) {
             budget.text = "%.2f Ft.".format(budgetAmount)
+            budget.setTextColor(Color.GREEN)
         }
         val expense = view?.findViewById<TextView>(R.id.expense)
         if (expense != null) {
             expense.text = "%.2f Ft.".format(expenseAmount)
+            expense.setTextColor(Color.RED)
         }
     }
 
     @OptIn(DelicateCoroutinesApi::class)
     private fun undoDelete() {
         GlobalScope.launch {
-            database.transactionsDatabaseDao.insertAll(deletedTransaction)
+            database.transactionDatabaseDao().insertAll(deletedTransaction)
             transactions = oldTransactions
             activity?.runOnUiThread {
                 updateDashboard()
-                transactionAdapter.transactions = transactions
+                transactionAdapter.setData(transactions)
             }
         }
     }
@@ -156,12 +161,12 @@ class HomeFragment : Fragment() {
         deletedTransaction = transaction
         oldTransactions = transactions
         GlobalScope.launch {
-            database.transactionsDatabaseDao.delete(transaction)
+            database.transactionDatabaseDao().delete(transaction)
             transactions = transactions.filter { it.id != transaction.id }
             activity?.runOnUiThread {
                 updateDashboard()
-                transactionAdapter.transactions = transactions
                 showSnackBar()
+                transactionAdapter.setData(transactions)
             }
         }
     }

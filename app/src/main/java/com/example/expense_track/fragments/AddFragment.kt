@@ -1,14 +1,13 @@
 package com.example.expense_track.fragments
 
 import android.os.Bundle
-import android.provider.SyncStateContract.Helpers.insert
-import androidx.fragment.app.Fragment
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.ImageButton
 import androidx.core.widget.addTextChangedListener
+import androidx.fragment.app.Fragment
 import androidx.navigation.fragment.findNavController
 import androidx.room.Room
 import com.example.expense_track.R
@@ -66,6 +65,7 @@ class AddFragment : Fragment() {
             else {
                 val transaction = Transaction(0, label, amount, description)
                 insert(transaction)
+                findNavController().navigate(R.id.action_addFragment_to_homeFragment)
             }
         }
 
@@ -77,7 +77,7 @@ class AddFragment : Fragment() {
         database = Room.databaseBuilder(requireContext(), TransactionsDatabase::class.java, "transactions")
             .build()
         GlobalScope.launch {
-            database.transactionsDatabaseDao.insertAll(transaction)
+            database.transactionDatabaseDao().insertAll(transaction)
         }
     }
 }

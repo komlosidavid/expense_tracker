@@ -1,12 +1,11 @@
 package com.example.expense_track.database
 
-import androidx.lifecycle.LiveData
 import androidx.room.*
 
 @Dao
 interface TransactionsDatabaseDao {
 
-    @Query("SELECT * FROM transactions_table")
+    @Query("SELECT * FROM transactions")
     fun getAll() : List<Transaction>
 
     @Insert
@@ -18,6 +17,9 @@ interface TransactionsDatabaseDao {
     @Update
     fun update(vararg transaction: Transaction)
 
-    @Query("SELECT * FROM transactions_table WHERE id = :key")
-    fun getTransactionWithId(key: Long): LiveData<Transaction>
+    @Query("DELETE FROM transactions")
+    fun deleteAll()
+
+    @Query("SELECT * FROM transactions t WHERE t.id=:id")
+    infix fun getTransactionById(id: Long) : com.example.expense_track.database.Transaction
 }
